@@ -1,0 +1,5 @@
+{
+  "name": "HttpHub",
+  "description": "A Postman clone with split views for workspaces and tabs.",
+  "requestFramePermissions": []
+}
