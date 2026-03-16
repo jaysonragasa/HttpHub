@@ -56,12 +56,12 @@
   --theme-bg-primary: #0b0c10;
   --theme-bg-secondary: #12141a;
   --theme-bg-tertiary: #1f2833;
-  --theme-border-primary: #f50057;
-  --theme-text-primary: #66fcf1;
-  --theme-text-secondary: #45a29e;
-  --theme-text-accent: #f50057;
-  --theme-accent-primary: #f50057;
-  --theme-accent-hover: #ff4081;
+  --theme-border-primary: #00b8ff;
+  --theme-text-primary: #00ff9f;
+  --theme-text-secondary: #001eff;
+  --theme-text-accent: #bd00ff;
+  --theme-accent-primary: #bd00ff;
+  --theme-accent-hover: #d600ff;
 }
 
 /* Light Theme */

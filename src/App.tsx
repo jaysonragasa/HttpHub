@@ -13,18 +13,27 @@ export default function App() {
   
   // Apply theme to body for portals (like context menus)
   React.useEffect(() => {
-    // Remove old theme classes
-    document.body.classList.remove('theme-dark', 'theme-monako', 'theme-cyberpunk', 'theme-light');
-    // Add new theme class
-    document.body.classList.add(themeClass);
+    document.body.className = themeClass;
   }, [themeClass]);
   
   return (
     <AppContext.Provider value={{ state, dispatch }}>
-      <div className={`${themeClass} w-full h-full`}>
+      <div className={`w-full h-full ${themeClass}`}>
         <div 
-          className={`flex flex-col h-screen bg-bg-primary text-text-primary font-sans overflow-hidden ${themeClass}`}
-          style={{ '--editor-font-size': `${state.settings.fontSize}px` } as React.CSSProperties}
+          className="flex flex-col h-screen bg-bg-primary text-text-primary font-sans overflow-hidden"
+          style={{ 
+            '--editor-font-size': `${state.settings.fontSize}px`,
+            // Explicitly map theme variables to ensure inheritance
+            '--color-bg-primary': `var(--theme-bg-primary)`,
+            '--color-bg-secondary': `var(--theme-bg-secondary)`,
+            '--color-bg-tertiary': `var(--theme-bg-tertiary)`,
+            '--color-border-primary': `var(--theme-border-primary)`,
+            '--color-text-primary': `var(--theme-text-primary)`,
+            '--color-text-secondary': `var(--theme-text-secondary)`,
+            '--color-text-accent': `var(--theme-text-accent)`,
+            '--color-accent-primary': `var(--theme-accent-primary)`,
+            '--color-accent-hover': `var(--theme-accent-hover)`,
+          } as React.CSSProperties}
         >
           {/* Top Navigation */}
           <header className="flex items-center justify-between px-4 py-2 bg-bg-tertiary border-b border-border-primary">
