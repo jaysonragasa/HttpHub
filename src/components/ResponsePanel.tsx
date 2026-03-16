@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
+import Editor from '@monaco-editor/react';
 import { HttpResponse } from '../types';
+import { AppContext } from '../store';
 
 export default function ResponsePanel({ response, isLoading }: { response?: HttpResponse, isLoading: boolean }) {
   const [activeTab, setActiveTab] = useState<'body' | 'headers' | 'cookies'>('body');
+  const { state } = useContext(AppContext);
 
   if (isLoading) {
     return (
@@ -32,13 +35,36 @@ export default function ResponsePanel({ response, isLoading }: { response?: Http
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
+  const getContentType = () => {
+    const contentType = response.headers['content-type'] || '';
+    if (contentType.includes('application/json')) return 'json';
+    if (contentType.includes('text/html')) return 'html';
+    if (contentType.includes('text/plain')) return 'text';
+    if (contentType.includes('application/javascript')) return 'javascript';
+    if (contentType.includes('text/css')) return 'css';
+    if (contentType.includes('application/xml')) return 'xml';
+    return 'text';
+  };
+
+  const getEditorLanguage = () => {
+    const type = getContentType();
+    if (type === 'json') return 'json';
+    if (type === 'html') return 'html';
+    if (type === 'javascript') return 'javascript';
+    if (type === 'css') return 'css';
+    if (type === 'xml') return 'xml';
+    return 'plaintext';
+  };
+
   const formatData = (data: any, isJson: boolean) => {
     if (isJson) {
       return JSON.stringify(data, null, 2);
     }
     if (typeof data === 'string') return data;
-    return JSON.stringify(data);
+    return JSON.stringify(data, null, 2);
   };
+
+  const theme = state.settings.theme === 'light' ? 'light' : 'vs-dark';
 
   return (
     <div className="flex flex-col h-full">
@@ -78,17 +104,24 @@ export default function ResponsePanel({ response, isLoading }: { response?: Http
       </div>
 
       {/* Response Content */}
-      <div className="flex-1 overflow-auto p-4 no-scrollbar bg-bg-primary">
+      <div className="flex-1 overflow-auto bg-bg-primary">
         {activeTab === 'body' && (
-          <pre 
-            className="text-sm font-mono text-text-primary whitespace-pre-wrap break-words"
-            style={{ fontSize: 'var(--editor-font-size)' }}
-          >
-            {formatData(response.data, response.isJson)}
-          </pre>
+          <Editor
+            height="100%"
+            language={getEditorLanguage()}
+            theme={theme}
+            value={formatData(response.data, response.isJson)}
+            options={{
+              readOnly: true,
+              fontSize: state.settings.fontSize,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              wordWrap: 'on',
+            }}
+          />
         )}
         {activeTab === 'headers' && (
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col space-y-1 p-4">
             {Object.entries(response.headers).map(([key, value]) => (
               <div key={key} className="flex font-mono" style={{ fontSize: 'var(--editor-font-size)' }}>
                 <span className="text-accent-primary w-1/3 break-words pr-4">{key}:</span>
@@ -98,7 +131,7 @@ export default function ResponsePanel({ response, isLoading }: { response?: Http
           </div>
         )}
         {activeTab === 'cookies' && (
-          <div className="flex flex-col space-y-2">
+          <div className="flex flex-col space-y-2 p-4">
             {response.cookies && response.cookies.length > 0 ? (
               response.cookies.map((cookie, i) => (
                 <div 
