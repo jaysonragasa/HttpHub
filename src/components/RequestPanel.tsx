@@ -8,8 +8,12 @@ import ResponsePanel from './ResponsePanel';
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
 
 export default function RequestPanel({ workspaceId, groupId, request }: { workspaceId: string, groupId: string, request: RequestModel }) {
-  const { dispatch } = useContext(AppContext);
-  const [activeSubTab, setActiveSubTab] = useState<'params' | 'headers' | 'body'>('params');
+  const { state, dispatch } = useContext(AppContext);
+  const [activeSubTab, setActiveSubTab] = useState<'params' | 'headers' | 'body' | 'settings'>('params');
+
+  const workspace = state.workspaces.find(w => w.id === workspaceId);
+  const allTabs = workspace ? workspace.tabGroups.flatMap(g => g.tabs) : [];
+  const otherTabs = allTabs.filter(t => t.id !== request.id);
 
   const updateRequest = (updater: (req: RequestModel) => RequestModel) => {
     dispatch({ type: 'UPDATE_REQUEST', workspaceId, groupId, tabId: request.id, updater });
@@ -35,6 +39,22 @@ export default function RequestPanel({ workspaceId, groupId, request }: { worksp
         }
         headers[h.key] = h.value;
       });
+
+      // Inherit cookies
+      if (request.inheritCookieFrom) {
+        const inheritedTab = allTabs.find(t => t.id === request.inheritCookieFrom);
+        if (inheritedTab && inheritedTab.response && inheritedTab.response.cookies) {
+          const cookieParts = inheritedTab.response.cookies.map(c => c.split(';')[0]);
+          if (cookieParts.length > 0) {
+            const existingCookieKey = Object.keys(headers).find(k => k.toLowerCase() === 'cookie');
+            if (existingCookieKey) {
+              headers[existingCookieKey] = `${headers[existingCookieKey]}; ${cookieParts.join('; ')}`;
+            } else {
+              headers['Cookie'] = cookieParts.join('; ');
+            }
+          }
+        }
+      }
 
       if (request.bodyType === 'json') {
         headers['Content-Type'] = 'application/json';
@@ -108,7 +128,7 @@ export default function RequestPanel({ workspaceId, groupId, request }: { worksp
         {/* Request Config (Top Half) */}
         <div className="flex-1 flex flex-col border-b border-gray-800 min-h-[200px]">
           <div className="flex items-center space-x-4 px-4 border-b border-gray-800">
-            {['params', 'headers', 'body'].map(tab => (
+            {['params', 'headers', 'body', 'settings'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveSubTab(tab as any)}
@@ -167,6 +187,26 @@ export default function RequestPanel({ workspaceId, groupId, request }: { worksp
                     This request does not have a body
                   </div>
                 )}
+              </div>
+            )}
+            {activeSubTab === 'settings' && (
+              <div className="flex flex-col space-y-4">
+                <div className="flex flex-col space-y-2">
+                  <label className="text-sm font-medium text-gray-300">Inherit Cookies From</label>
+                  <select
+                    value={request.inheritCookieFrom || ''}
+                    onChange={(e) => updateRequest(r => ({ ...r, inheritCookieFrom: e.target.value }))}
+                    className="bg-[#1a1d27] border border-gray-700 text-gray-200 text-sm rounded px-3 py-2 outline-none focus:border-emerald-500 w-full max-w-md"
+                  >
+                    <option value="">None</option>
+                    {otherTabs.map(t => (
+                      <option key={t.id} value={t.id}>{t.name || 'Untitled Request'}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500">
+                    Select a previous request to automatically include its received cookies in this request.
+                  </p>
+                </div>
               </div>
             )}
           </div>

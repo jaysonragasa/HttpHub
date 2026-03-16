@@ -31,6 +31,14 @@ async function startServer() {
         responseHeaders[key] = value;
       });
 
+      let setCookies: string[] = [];
+      if (typeof response.headers.getSetCookie === 'function') {
+        setCookies = response.headers.getSetCookie();
+      } else {
+        const raw = response.headers.get('set-cookie');
+        if (raw) setCookies = [raw];
+      }
+
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const size = buffer.length;
@@ -58,6 +66,7 @@ async function startServer() {
         time: endTime - startTime,
         size,
         headers: responseHeaders,
+        cookies: setCookies,
         data,
         isJson
       });

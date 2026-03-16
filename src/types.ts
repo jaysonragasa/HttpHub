@@ -13,6 +13,7 @@ export interface HttpResponse {
   time: number;
   size: number;
   headers: Record<string, string>;
+  cookies?: string[];
   data: any;
   isJson: boolean;
   error?: string;
@@ -27,6 +28,7 @@ export interface RequestModel {
   params: KV[];
   bodyType: 'none' | 'json' | 'text';
   body: string;
+  inheritCookieFrom?: string;
   response?: HttpResponse;
   isLoading: boolean;
 }

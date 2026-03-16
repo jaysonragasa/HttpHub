@@ -19,6 +19,7 @@ export const createNewRequest = (): RequestModel => ({
   params: [{ id: Math.random().toString(36).substring(7), key: '', value: '', enabled: true }],
   bodyType: 'none',
   body: '',
+  inheritCookieFrom: '',
   isLoading: false,
 });
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { HttpResponse } from '../types';
 
 export default function ResponsePanel({ response, isLoading }: { response?: HttpResponse, isLoading: boolean }) {
-  const [activeTab, setActiveTab] = useState<'body' | 'headers'>('body');
+  const [activeTab, setActiveTab] = useState<'body' | 'headers' | 'cookies'>('body');
 
   if (isLoading) {
     return (
@@ -46,7 +46,7 @@ export default function ResponsePanel({ response, isLoading }: { response?: Http
       <div className="flex items-center justify-between px-4 py-2 bg-[#141620] border-b border-gray-800">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
-            {['body', 'headers'].map(tab => (
+            {['body', 'headers', 'cookies'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -56,6 +56,7 @@ export default function ResponsePanel({ response, isLoading }: { response?: Http
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 {tab === 'headers' && <span className="ml-1 text-xs text-gray-500">({Object.keys(response.headers).length})</span>}
+                {tab === 'cookies' && response.cookies && <span className="ml-1 text-xs text-gray-500">({response.cookies.length})</span>}
               </button>
             ))}
           </div>
@@ -91,6 +92,19 @@ export default function ResponsePanel({ response, isLoading }: { response?: Http
                 <span className="text-gray-300 w-2/3 break-words">{value}</span>
               </div>
             ))}
+          </div>
+        )}
+        {activeTab === 'cookies' && (
+          <div className="flex flex-col space-y-2">
+            {response.cookies && response.cookies.length > 0 ? (
+              response.cookies.map((cookie, i) => (
+                <div key={i} className="text-sm font-mono text-gray-300 break-words border-b border-gray-800 pb-2 mb-2 last:border-0">
+                  {cookie}
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-gray-500">No cookies received in this response.</div>
+            )}
           </div>
         )}
       </div>
