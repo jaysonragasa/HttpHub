@@ -10,7 +10,7 @@ async function startServer() {
   app.use(express.text({ limit: '50mb' }));
 
   app.post('/api/proxy', async (req, res) => {
-    const { method, url, headers, body } = req.body;
+    const { method, url, headers, body, bodyType } = req.body;
     
     const startTime = Date.now();
     try {
@@ -20,7 +20,34 @@ async function startServer() {
       };
 
       if (method !== 'GET' && method !== 'HEAD' && body) {
-        fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+        if (bodyType === 'form-data') {
+          const formData = new FormData();
+          for (const [key, value] of Object.entries(body)) {
+            if (typeof value === 'object' && value !== null && (value as any).type === 'file') {
+              const fileData = (value as any).file;
+              const base64Parts = fileData.base64.split(',');
+              const base64Data = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
+              const buffer = Buffer.from(base64Data, 'base64');
+              const blob = new Blob([buffer], { type: fileData.type });
+              formData.append(key, blob, fileData.name);
+            } else {
+              formData.append(key, value as string);
+            }
+          }
+          fetchOptions.body = formData;
+          // Let fetch automatically set the Content-Type with the boundary
+          if (fetchOptions.headers && (fetchOptions.headers as Record<string, string>)['Content-Type'] === 'multipart/form-data') {
+            delete (fetchOptions.headers as Record<string, string>)['Content-Type'];
+          }
+        } else if (bodyType === 'x-www-form-urlencoded') {
+          const searchParams = new URLSearchParams();
+          for (const [key, value] of Object.entries(body)) {
+            searchParams.append(key, value as string);
+          }
+          fetchOptions.body = searchParams;
+        } else {
+          fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+        }
       }
 
       const response = await fetch(url, fetchOptions);

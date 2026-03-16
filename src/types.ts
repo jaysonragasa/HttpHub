@@ -5,6 +5,12 @@ export interface KV {
   key: string;
   value: string;
   enabled: boolean;
+  type?: 'text' | 'file';
+  file?: {
+    name: string;
+    type: string;
+    base64: string;
+  };
 }
 
 export interface HttpResponse {
@@ -19,24 +25,45 @@ export interface HttpResponse {
   error?: string;
 }
 
+export interface VisualTabGroup {
+  id: string;
+  name: string;
+  color: string;
+  collapsed: boolean;
+}
+
 export interface RequestModel {
   id: string;
   name: string;
+  customName?: string;
   method: HttpMethod;
   url: string;
   headers: KV[];
   params: KV[];
-  bodyType: 'none' | 'json' | 'text';
+  bodyType: 'none' | 'form-data' | 'x-www-form-urlencoded' | 'json' | 'text';
   body: string;
+  formData: KV[];
+  urlencoded: KV[];
   inheritCookieFrom?: string;
   response?: HttpResponse;
   isLoading: boolean;
+  visualGroupId?: string;
 }
 
 export interface TabGroupModel {
   id: string;
   tabs: RequestModel[];
   activeTabId: string | null;
+  visualGroups: VisualTabGroup[];
+  tabMode: 'horizontal' | 'vertical';
+  isVerticalExpanded: boolean;
+  isVerticalPinned: boolean;
+  verticalWidth: number;
+}
+
+export interface SettingsModel {
+  fontSize: number;
+  theme: 'dark' | 'monako' | 'cyberpunk' | 'light';
 }
 
 export interface WorkspaceModel {

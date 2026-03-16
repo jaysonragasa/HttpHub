@@ -1,5 +1,5 @@
-import React, { createContext, Dispatch } from 'react';
-import { WorkspaceModel, TabGroupModel, RequestModel, KV } from './types';
+import React, { createContext, Dispatch, useEffect, useReducer } from 'react';
+import { WorkspaceModel, TabGroupModel, RequestModel, KV, SettingsModel } from './types';
 
 export const createNewRequest = (): RequestModel => ({
   id: Math.random().toString(36).substring(7),
@@ -19,6 +19,8 @@ export const createNewRequest = (): RequestModel => ({
   params: [{ id: Math.random().toString(36).substring(7), key: '', value: '', enabled: true }],
   bodyType: 'none',
   body: '',
+  formData: [{ id: Math.random().toString(36).substring(7), key: '', value: '', enabled: true, type: 'text' }],
+  urlencoded: [{ id: Math.random().toString(36).substring(7), key: '', value: '', enabled: true }],
   inheritCookieFrom: '',
   isLoading: false,
 });
@@ -29,6 +31,11 @@ export const createNewTabGroup = (): TabGroupModel => {
     id: Math.random().toString(36).substring(7),
     tabs: [req],
     activeTabId: req.id,
+    visualGroups: [],
+    tabMode: 'horizontal',
+    isVerticalExpanded: false,
+    isVerticalPinned: false,
+    verticalWidth: 250,
   };
 };
 
@@ -39,8 +46,26 @@ export const createNewWorkspace = (name: string): WorkspaceModel => ({
   splitDirection: 'row',
 });
 
+export const defaultSettings: SettingsModel = {
+  fontSize: 14,
+  theme: 'dark',
+};
+
+const loadSettings = (): SettingsModel => {
+  try {
+    const saved = localStorage.getItem('httphub_settings');
+    if (saved) {
+      return { ...defaultSettings, ...JSON.parse(saved) };
+    }
+  } catch (e) {
+    console.error('Failed to load settings', e);
+  }
+  return defaultSettings;
+};
+
 export const initialState = {
   workspaces: [createNewWorkspace('Workspace 1')],
+  settings: loadSettings(),
 };
 
 export type Action = 
@@ -51,7 +76,9 @@ export type Action =
   | { type: 'ADD_TAB'; workspaceId: string; groupId: string }
   | { type: 'REMOVE_TAB'; workspaceId: string; groupId: string; tabId: string }
   | { type: 'SET_ACTIVE_TAB'; workspaceId: string; groupId: string; tabId: string }
-  | { type: 'UPDATE_REQUEST'; workspaceId: string; groupId: string; tabId: string; updater: (req: RequestModel) => RequestModel };
+  | { type: 'UPDATE_REQUEST'; workspaceId: string; groupId: string; tabId: string; updater: (req: RequestModel) => RequestModel }
+  | { type: 'UPDATE_TAB_GROUP'; workspaceId: string; groupId: string; updater: (group: TabGroupModel) => TabGroupModel }
+  | { type: 'UPDATE_SETTINGS'; updater: (settings: SettingsModel) => SettingsModel };
 
 export function reducer(state: typeof initialState, action: Action): typeof initialState {
   switch (action.type) {
@@ -166,6 +193,34 @@ export function reducer(state: typeof initialState, action: Action): typeof init
           return w;
         })
       };
+    }
+    case 'UPDATE_TAB_GROUP': {
+      return {
+        ...state,
+        workspaces: state.workspaces.map(w => {
+          if (w.id === action.workspaceId) {
+            return {
+              ...w,
+              tabGroups: w.tabGroups.map(g => {
+                if (g.id === action.groupId) {
+                  return action.updater(g);
+                }
+                return g;
+              })
+            };
+          }
+          return w;
+        })
+      };
+    }
+    case 'UPDATE_SETTINGS': {
+      const newSettings = action.updater(state.settings);
+      try {
+        localStorage.setItem('httphub_settings', JSON.stringify(newSettings));
+      } catch (e) {
+        console.error('Failed to save settings', e);
+      }
+      return { ...state, settings: newSettings };
     }
     default:
       return state;

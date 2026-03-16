@@ -1,49 +1,75 @@
-import React, { useReducer } from 'react';
-import { Plus, LayoutGrid } from 'lucide-react';
+import React, { useReducer, useState } from 'react';
+import { Plus, LayoutGrid, Settings } from 'lucide-react';
 import { reducer, initialState, AppContext } from './store';
 import WorkspaceView from './components/WorkspaceView';
+import SettingsModal from './components/SettingsModal';
 
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Apply theme and font size to the root element
+  const themeClass = `theme-${state.settings.theme}`;
+  
+  // Apply theme to body for portals (like context menus)
+  React.useEffect(() => {
+    // Remove old theme classes
+    document.body.classList.remove('theme-dark', 'theme-monako', 'theme-cyberpunk', 'theme-light');
+    // Add new theme class
+    document.body.classList.add(themeClass);
+  }, [themeClass]);
+  
   return (
     <AppContext.Provider value={{ state, dispatch }}>
-      <div className="flex flex-col h-screen bg-[#0f111a] text-gray-300 font-sans overflow-hidden">
-        {/* Top Navigation */}
-        <header className="flex items-center justify-between px-4 py-2 bg-[#1a1d27] border-b border-gray-800">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-emerald-400 font-bold text-lg">
-              <LayoutGrid size={20} />
-              <span>HttpHub</span>
+      <div className={`${themeClass} w-full h-full`}>
+        <div 
+          className={`flex flex-col h-screen bg-bg-primary text-text-primary font-sans overflow-hidden ${themeClass}`}
+          style={{ '--editor-font-size': `${state.settings.fontSize}px` } as React.CSSProperties}
+        >
+          {/* Top Navigation */}
+          <header className="flex items-center justify-between px-4 py-2 bg-bg-tertiary border-b border-border-primary">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 text-text-accent font-bold text-lg">
+                <LayoutGrid size={20} />
+                <span>HttpHub</span>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button 
-              onClick={() => dispatch({ type: 'ADD_WORKSPACE' })}
-              className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-colors"
-            >
-              <Plus size={16} />
-              <span>New Workspace</span>
-            </button>
-          </div>
-        </header>
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary transition-colors"
+                title="Settings"
+              >
+                <Settings size={18} />
+              </button>
+              <button 
+                onClick={() => dispatch({ type: 'ADD_WORKSPACE' })}
+                className="flex items-center space-x-1 px-3 py-1.5 bg-accent-primary hover:bg-accent-hover text-white rounded-md text-sm font-medium transition-colors"
+              >
+                <Plus size={16} />
+                <span>New Workspace</span>
+              </button>
+            </div>
+          </header>
 
-        {/* Workspaces Split View */}
-        <main className="flex-1 flex overflow-hidden">
-          {state.workspaces.map((ws, index) => (
-            <React.Fragment key={ws.id}>
-              <WorkspaceView workspace={ws} />
-              {index < state.workspaces.length - 1 && (
-                <div className="w-1 bg-gray-800 cursor-col-resize hover:bg-emerald-500 transition-colors" />
-              )}
-            </React.Fragment>
-          ))}
-          {state.workspaces.length === 0 && (
-            <div className="flex-1 flex items-center justify-center text-gray-500">
-              No workspaces open. Click "New Workspace" to start.
-            </div>
-          )}
-        </main>
+          {/* Workspaces Split View */}
+          <main className="flex-1 flex overflow-hidden">
+            {state.workspaces.map((ws, index) => (
+              <React.Fragment key={ws.id}>
+                <WorkspaceView workspace={ws} />
+                {index < state.workspaces.length - 1 && (
+                  <div className="w-1 bg-border-primary cursor-col-resize hover:bg-accent-hover transition-colors" />
+                )}
+              </React.Fragment>
+            ))}
+            {state.workspaces.length === 0 && (
+              <div className="flex-1 flex items-center justify-center text-text-secondary">
+                No workspaces open. Click "New Workspace" to start.
+              </div>
+            )}
+          </main>
+        </div>
+        {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
       </div>
     </AppContext.Provider>
   );

@@ -1,1 +1,108 @@
 @import "tailwindcss";
+
+@theme {
+  --color-bg-primary: var(--theme-bg-primary);
+  --color-bg-secondary: var(--theme-bg-secondary);
+  --color-bg-tertiary: var(--theme-bg-tertiary);
+  --color-border-primary: var(--theme-border-primary);
+  --color-text-primary: var(--theme-text-primary);
+  --color-text-secondary: var(--theme-text-secondary);
+  --color-text-accent: var(--theme-text-accent);
+  --color-accent-primary: var(--theme-accent-primary);
+  --color-accent-hover: var(--theme-accent-hover);
+}
+
+:root {
+  --editor-font-size: 14px;
+  --theme-bg-primary: #0f111a;
+  --theme-bg-secondary: #141620;
+  --theme-bg-tertiary: #1a1d27;
+  --theme-border-primary: #1f2937;
+  --theme-text-primary: #d1d5db;
+  --theme-text-secondary: #9ca3af;
+  --theme-text-accent: #34d399;
+  --theme-accent-primary: #059669;
+  --theme-accent-hover: #10b981;
+}
+
+/* Default Dark Theme */
+.theme-dark {
+  --theme-bg-primary: #0f111a;
+  --theme-bg-secondary: #141620;
+  --theme-bg-tertiary: #1a1d27;
+  --theme-border-primary: #1f2937; /* gray-800 */
+  --theme-text-primary: #d1d5db; /* gray-300 */
+  --theme-text-secondary: #9ca3af; /* gray-400 */
+  --theme-text-accent: #34d399; /* emerald-400 */
+  --theme-accent-primary: #059669; /* emerald-600 */
+  --theme-accent-hover: #10b981; /* emerald-500 */
+}
+
+/* Monako Theme */
+.theme-monako {
+  --theme-bg-primary: #1e1e1e;
+  --theme-bg-secondary: #252526;
+  --theme-bg-tertiary: #2d2d30;
+  --theme-border-primary: #3e3e42;
+  --theme-text-primary: #d4d4d4;
+  --theme-text-secondary: #858585;
+  --theme-text-accent: #569cd6;
+  --theme-accent-primary: #007acc;
+  --theme-accent-hover: #0098ff;
+}
+
+/* Cyberpunk Theme */
+.theme-cyberpunk {
+  --theme-bg-primary: #0b0c10;
+  --theme-bg-secondary: #12141a;
+  --theme-bg-tertiary: #1f2833;
+  --theme-border-primary: #f50057;
+  --theme-text-primary: #66fcf1;
+  --theme-text-secondary: #45a29e;
+  --theme-text-accent: #f50057;
+  --theme-accent-primary: #f50057;
+  --theme-accent-hover: #ff4081;
+}
+
+/* Light Theme */
+.theme-light {
+  --theme-bg-primary: #ffffff;
+  --theme-bg-secondary: #f3f4f6;
+  --theme-bg-tertiary: #e5e7eb;
+  --theme-border-primary: #d1d5db;
+  --theme-text-primary: #111827;
+  --theme-text-secondary: #4b5563;
+  --theme-text-accent: #059669;
+  --theme-accent-primary: #059669;
+  --theme-accent-hover: #10b981;
+}
+
+/* Apply themes to global elements */
+.theme-dark, .theme-monako, .theme-cyberpunk, .theme-light {
+  background-color: var(--theme-bg-primary);
+  color: var(--theme-text-primary);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--theme-bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--theme-border-primary);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-text-secondary);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
