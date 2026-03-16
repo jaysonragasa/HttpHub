@@ -30,6 +30,9 @@ export default function RequestPanel({ workspaceId, groupId, request }: { worksp
       // Construct headers
       const headers: Record<string, string> = {};
       request.headers.filter(h => h.enabled && h.key).forEach(h => {
+        if (h.value === '<calculated when request is sent>') {
+          return; // Skip auto-calculated headers
+        }
         headers[h.key] = h.value;
       });
 

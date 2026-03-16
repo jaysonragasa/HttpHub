@@ -6,7 +6,16 @@ export const createNewRequest = (): RequestModel => ({
   name: 'Untitled Request',
   method: 'GET',
   url: '',
-  headers: [{ id: Math.random().toString(36).substring(7), key: '', value: '', enabled: true }],
+  headers: [
+    { id: Math.random().toString(36).substring(7), key: 'Cache-Control', value: 'no-cache', enabled: true },
+    { id: Math.random().toString(36).substring(7), key: 'Postman-Token', value: '<calculated when request is sent>', enabled: true },
+    { id: Math.random().toString(36).substring(7), key: 'Host', value: '<calculated when request is sent>', enabled: true },
+    { id: Math.random().toString(36).substring(7), key: 'User-Agent', value: 'PostmanRuntime/7.51.1', enabled: true },
+    { id: Math.random().toString(36).substring(7), key: 'Accept', value: '*/*', enabled: true },
+    { id: Math.random().toString(36).substring(7), key: 'Accept-Encoding', value: 'gzip, deflate, br', enabled: true },
+    { id: Math.random().toString(36).substring(7), key: 'Connection', value: 'keep-alive', enabled: true },
+    { id: Math.random().toString(36).substring(7), key: '', value: '', enabled: true }
+  ],
   params: [{ id: Math.random().toString(36).substring(7), key: '', value: '', enabled: true }],
   bodyType: 'none',
   body: '',
