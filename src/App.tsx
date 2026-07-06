@@ -1,5 +1,5 @@
 import React, { useReducer, useState } from 'react';
-import { Plus, LayoutGrid, Settings } from 'lucide-react';
+import { Plus, LayoutGrid, Settings, Maximize2 } from 'lucide-react';
 import { reducer, initialState, AppContext } from './store';
 import WorkspaceView from './components/WorkspaceView';
 import SettingsModal from './components/SettingsModal';
@@ -11,10 +11,25 @@ export default function App() {
   // Apply theme and font size to the root element
   const themeClass = `theme-${state.settings.theme}`;
   
+  // Auto-save workspaces when they change
+  React.useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      try {
+        localStorage.setItem('httphub_workspaces', JSON.stringify(state.workspaces));
+      } catch (e) {
+        console.error('Failed to auto-save workspaces', e);
+      }
+    }, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [state.workspaces]);
+
   // Apply theme to body for portals (like context menus)
   React.useEffect(() => {
     document.body.className = themeClass;
   }, [themeClass]);
+
+  const visibleWorkspaces = state.workspaces.filter(ws => !ws.isCollapsed);
+  const collapsedWorkspaces = state.workspaces.filter(ws => ws.isCollapsed);
   
   return (
     <AppContext.Provider value={{ state, dispatch }}>
@@ -38,12 +53,29 @@ export default function App() {
           {/* Top Navigation */}
           <header className="flex items-center justify-between px-4 py-2 bg-bg-tertiary border-b border-border-primary">
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-text-accent font-bold text-lg">
+              <div className="flex items-center space-x-2 text-text-accent font-bold text-lg shrink-0">
                 <LayoutGrid size={20} />
                 <span>HttpHub</span>
               </div>
+              
+              {collapsedWorkspaces.length > 0 && (
+                <div className="flex items-center space-x-2 ml-4 border-l border-border-primary pl-4 overflow-x-auto no-scrollbar">
+                  {collapsedWorkspaces.map(ws => (
+                    <button
+                      key={ws.id}
+                      onClick={() => dispatch({ type: 'UPDATE_WORKSPACE_DATA', workspaceId: ws.id, data: { isCollapsed: false } })}
+                      className="flex items-center space-x-1 px-2 py-1 bg-bg-secondary hover:bg-bg-primary border border-border-primary rounded text-xs text-text-secondary hover:text-text-primary transition-colors shrink-0"
+                      title={`Restore ${ws.name}`}
+                    >
+                      <span className="truncate max-w-[100px]">{ws.name}</span>
+                      <Maximize2 size={12} className="ml-1" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 shrink-0">
+
               <button 
                 onClick={() => setIsSettingsOpen(true)}
                 className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary transition-colors"
@@ -63,17 +95,17 @@ export default function App() {
 
           {/* Workspaces Split View */}
           <main className="flex-1 flex overflow-hidden">
-            {state.workspaces.map((ws, index) => (
+            {visibleWorkspaces.map((ws, index) => (
               <React.Fragment key={ws.id}>
                 <WorkspaceView workspace={ws} />
-                {index < state.workspaces.length - 1 && (
+                {index < visibleWorkspaces.length - 1 && (
                   <div className="w-1 bg-border-primary cursor-col-resize hover:bg-accent-hover transition-colors" />
                 )}
               </React.Fragment>
             ))}
-            {state.workspaces.length === 0 && (
+            {visibleWorkspaces.length === 0 && (
               <div className="flex-1 flex items-center justify-center text-text-secondary">
-                No workspaces open. Click "New Workspace" to start.
+                No active workspaces open. Click "New Workspace" or restore a collapsed one from the top bar.
               </div>
             )}
           </main>

@@ -1,16 +1,18 @@
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Plus, X, SplitSquareHorizontal, SplitSquareVertical, MoreVertical, LayoutPanelLeft, LayoutPanelTop, Pin, PinOff, ChevronRight, ChevronLeft, FolderPlus } from 'lucide-react';
+import { Plus, X, SplitSquareHorizontal, SplitSquareVertical, MoreVertical, LayoutPanelLeft, LayoutPanelTop, Pin, PinOff, ChevronRight, ChevronLeft, FolderPlus, ChevronDown } from 'lucide-react';
 import { AppContext } from '../store';
 import { TabGroupModel, RequestModel, VisualTabGroup } from '../types';
 import RequestPanel from './RequestPanel';
+import WebSocketPanel from './WebSocketPanel';
+import { dispose as disposeWs } from '../lib/wsManager';
 
 export default function TabGroupView({ workspaceId, group, splitDirection }: { workspaceId: string, group: TabGroupModel, splitDirection: 'row'|'col' }) {
   const { dispatch } = useContext(AppContext);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
-  const [menuConfig, setMenuConfig] = useState<{ type: 'tab' | 'group', id: string, x: number, y: number } | null>(null);
+  const [menuConfig, setMenuConfig] = useState<{ type: 'tab' | 'group' | 'tabs-list', id: string, x: number, y: number } | null>(null);
   const [isHoveringVertical, setIsHoveringVertical] = useState(false);
   const [resizing, setResizing] = useState(false);
   
@@ -52,7 +54,7 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
     };
   }, [menuConfig]);
 
-  const handleMenuClick = (e: React.MouseEvent, type: 'tab' | 'group', id: string) => {
+  const handleMenuClick = (e: React.MouseEvent, type: 'tab' | 'group' | 'tabs-list', id: string) => {
     e.stopPropagation();
     if (menuConfig?.id === id && menuConfig?.type === type) {
       setMenuConfig(null);
@@ -62,8 +64,9 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
     let x = rect.left;
     let y = rect.bottom + 4;
     
-    if (x + 192 > window.innerWidth) {
-      x = window.innerWidth - 192 - 8;
+    const menuWidth = type === 'tabs-list' ? 256 : 192;
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 8;
     }
     if (y + 200 > window.innerHeight) {
       y = rect.top - 200 - 4;
@@ -259,6 +262,7 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
             ref={provided.innerRef}
             {...provided.draggableProps}
             {...provided.dragHandleProps}
+            data-tab-id={tab.id}
             onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', workspaceId, groupId: group.id, tabId: tab.id })}
             className={`relative flex items-center space-x-2 py-2 cursor-pointer group/tab ${
               isVertical ? 'w-full border-b border-border-primary/50' : 'px-3 min-w-[120px] max-w-[200px] border-r border-border-primary h-full shrink-0'
@@ -268,7 +272,7 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
                 : (isVertical ? 'text-text-secondary hover:bg-bg-tertiary border-l-2 border-l-transparent' : 'text-text-secondary hover:bg-bg-tertiary border-t-2 border-t-transparent')
             } ${inGroup && isVertical ? (isExpanded ? 'pl-6 pr-3' : 'px-0') : (isVertical ? 'px-3' : '')} ${snapshot.isDragging ? 'shadow-lg z-50 bg-bg-tertiary' : ''}`}
           >
-            <span className={`text-[10px] font-bold ${getMethodColor(tab.method)} ${isVertical && !isExpanded ? 'w-full text-center' : 'w-8 text-center shrink-0'}`}>{tab.method}</span>
+            <span className={`text-[10px] font-bold ${tab.connectionType === 'websocket' ? 'text-text-accent' : getMethodColor(tab.method)} ${isVertical && !isExpanded ? 'w-full text-center' : 'w-8 text-center shrink-0'}`}>{tab.connectionType === 'websocket' ? 'WS' : tab.method}</span>
             
             {(!isVertical || isExpanded) && (
               <>
@@ -283,7 +287,7 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
                     onClick={e => e.stopPropagation()}
                   />
                 ) : (
-                  <span className="text-xs truncate flex-1" onDoubleClick={() => handleRename(tab)}>{tabName}</span>
+                  <span className="text-xs truncate flex-1" onDoubleClick={() => handleRename(tab)} title={tabName}>{tabName}</span>
                 )}
                 
                 <div className="flex items-center opacity-0 group-hover/tab:opacity-100 transition-opacity">
@@ -296,6 +300,7 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
+                      disposeWs(tab.id);
                       dispatch({ type: 'REMOVE_TAB', workspaceId, groupId: group.id, tabId: tab.id });
                     }}
                     className="p-0.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
@@ -318,6 +323,11 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
       style={{ width: isVertical ? sidebarWidth : 'auto' }}
       onMouseEnter={() => isVertical && setIsHoveringVertical(true)}
       onMouseLeave={() => isVertical && setIsHoveringVertical(false)}
+      onWheel={(e) => {
+        if (!isVertical && sidebarRef.current) {
+          sidebarRef.current.scrollLeft += e.deltaY;
+        }
+      }}
     >
       {/* Vertical Mode Header */}
       {isVertical && (
@@ -360,11 +370,16 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
                     <div
                       ref={provided.innerRef}
                       {...provided.draggableProps}
-                      className={`${isVertical ? 'flex flex-col w-full' : 'flex items-center h-full'}`}
+                      className={`${isVertical ? 'flex flex-col w-full' : 'flex items-center h-full shrink-0'}`}
                     >
                       {gt.group && (!isVertical || isExpanded) && (
                         <div {...provided.dragHandleProps} className={`group relative flex items-center px-2 py-1 ${isVertical ? 'mt-2 mb-1' : 'mx-1 border border-border-primary rounded-full bg-bg-secondary shrink-0'}`}>
                           <button onClick={() => gt.group && toggleGroupCollapse(gt.group.id)} className="flex items-center space-x-1 flex-1 min-w-0">
+                            <ChevronRight 
+                              size={14} 
+                              className={`shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.55,0.085,0.68,0.53)] ${!gt.group.collapsed ? 'rotate-90' : 'rotate-0'}`} 
+                              style={{ color: gt.group.color }} 
+                            />
                             <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: gt.group.color }}></div>
                             <span className="text-[11px] font-medium text-text-primary truncate" style={{ color: gt.group.color }}>{gt.group.name}</span>
                           </button>
@@ -385,12 +400,16 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
                       <Droppable droppableId={gt.group ? `group-${gt.group.id}` : 'ungrouped'} type="tab" direction={isVertical ? 'vertical' : 'horizontal'}>
                         {(provided, snapshot) => (
                           <div
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                            className={`${isVertical ? 'flex flex-col w-full min-h-[4px]' : 'flex items-center h-full min-w-[4px]'} ${snapshot.isDraggingOver ? 'bg-bg-secondary/50' : ''}`}
+                            className={`grid ${isVertical ? 'transition-[grid-template-rows]' : 'transition-[grid-template-columns]'} duration-300 ease-[cubic-bezier(0.55,0.085,0.68,0.53)] ${(!gt.group || !gt.group.collapsed) ? (isVertical ? 'grid-rows-[1fr]' : 'grid-cols-[1fr]') : (isVertical ? 'grid-rows-[0fr]' : 'grid-cols-[0fr]')} ${snapshot.isDraggingOver ? 'bg-bg-secondary/50' : ''}`}
                           >
-                            {(!gt.group || !gt.group.collapsed) && gt.tabs.map((tab, index) => renderTab(tab, index, !!gt.group))}
-                            {provided.placeholder}
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.droppableProps}
+                              className={`overflow-hidden ${isVertical ? 'flex flex-col w-full min-h-0' : 'flex items-center h-full min-w-0'}`}
+                            >
+                              {gt.tabs.map((tab, index) => renderTab(tab, index, !!gt.group))}
+                              {provided.placeholder}
+                            </div>
                           </div>
                         )}
                       </Droppable>
@@ -433,44 +452,55 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
 
       {/* Horizontal Mode Toolbar */}
       {!isVertical && (
-        <div className="flex items-center px-2 space-x-1 shrink-0 ml-auto border-l border-border-primary pl-2">
-          <button 
-            onClick={() => dispatch({ type: 'ADD_TAB', workspaceId, groupId: group.id })}
-            className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
-            title="New Tab"
-          >
-            <Plus size={14} />
-          </button>
-          <div className="w-px h-4 bg-border-primary mx-1"></div>
-          <button 
-            onClick={() => dispatch({ type: 'UPDATE_TAB_GROUP', workspaceId, groupId: group.id, updater: g => ({ ...g, tabMode: 'vertical' }) })}
-            className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
-            title="Vertical Tabs"
-          >
-            <LayoutPanelLeft size={14} />
-          </button>
-          <button 
-            onClick={() => dispatch({ type: 'ADD_TAB_GROUP', workspaceId, direction: 'row' })}
-            className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
-            title="Split Right"
-          >
-            <SplitSquareHorizontal size={14} />
-          </button>
-          <button 
-            onClick={() => dispatch({ type: 'ADD_TAB_GROUP', workspaceId, direction: 'col' })}
-            className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
-            title="Split Down"
-          >
-            <SplitSquareVertical size={14} />
-          </button>
-          <button 
-            onClick={() => dispatch({ type: 'REMOVE_TAB_GROUP', workspaceId, groupId: group.id })}
-            className="p-1.5 hover:bg-red-900/50 rounded text-text-secondary hover:text-red-400"
-            title="Close Split"
-          >
-            <X size={14} />
-          </button>
-        </div>
+        <>
+          <div className="sticky z-20 bg-bg-tertiary flex items-center justify-center shrink-0 right-[163px] pl-1 pr-2">
+            <button 
+              onClick={() => dispatch({ type: 'ADD_TAB', workspaceId, groupId: group.id })}
+              className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
+              title="New Tab"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+          
+          <div className="sticky right-0 z-20 bg-bg-tertiary flex items-center px-2 space-x-1 shrink-0 border-l border-border-primary h-full ml-auto">
+            <button 
+              onClick={(e) => handleMenuClick(e, 'tabs-list', '')}
+              className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
+              title="Open Tabs"
+            >
+              <ChevronDown size={14} />
+            </button>
+            <button 
+              onClick={() => dispatch({ type: 'UPDATE_TAB_GROUP', workspaceId, groupId: group.id, updater: g => ({ ...g, tabMode: 'vertical' }) })}
+              className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
+              title="Vertical Tabs"
+            >
+              <LayoutPanelLeft size={14} />
+            </button>
+            <button 
+              onClick={() => dispatch({ type: 'ADD_TAB_GROUP', workspaceId, direction: 'row' })}
+              className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
+              title="Split Right"
+            >
+              <SplitSquareHorizontal size={14} />
+            </button>
+            <button 
+              onClick={() => dispatch({ type: 'ADD_TAB_GROUP', workspaceId, direction: 'col' })}
+              className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
+              title="Split Down"
+            >
+              <SplitSquareVertical size={14} />
+            </button>
+            <button 
+              onClick={() => dispatch({ type: 'REMOVE_TAB_GROUP', workspaceId, groupId: group.id })}
+              className="p-1.5 hover:bg-red-900/50 rounded text-text-secondary hover:text-red-400"
+              title="Close Split"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </>
       )}
       
       {/* Vertical Mode Bottom Toolbar */}
@@ -499,6 +529,28 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
       content = (
         <>
           <button onClick={() => handleRename(tab)} className="w-full text-left px-4 py-1.5 text-xs text-text-primary hover:bg-accent-hover hover:text-white">Rename</button>
+          <div className="border-t border-border-primary my-1"></div>
+          <div className="px-4 py-1 text-[10px] font-bold text-text-secondary uppercase tracking-wider">Connection Type</div>
+          <button
+            onClick={() => {
+              dispatch({ type: 'UPDATE_REQUEST', workspaceId, groupId: group.id, tabId: tab.id, updater: r => ({ ...r, connectionType: 'http' }) });
+              setMenuConfig(null);
+            }}
+            className="w-full text-left px-4 py-1.5 text-xs text-text-primary hover:bg-accent-hover hover:text-white flex items-center justify-between"
+          >
+            <span>HTTP</span>
+            {(tab.connectionType ?? 'http') === 'http' && <span className="text-accent-primary">✓</span>}
+          </button>
+          <button
+            onClick={() => {
+              dispatch({ type: 'UPDATE_REQUEST', workspaceId, groupId: group.id, tabId: tab.id, updater: r => ({ ...r, connectionType: 'websocket' }) });
+              setMenuConfig(null);
+            }}
+            className="w-full text-left px-4 py-1.5 text-xs text-text-primary hover:bg-accent-hover hover:text-white flex items-center justify-between"
+          >
+            <span>WebSocket</span>
+            {tab.connectionType === 'websocket' && <span className="text-accent-primary">✓</span>}
+          </button>
           <div className="border-t border-border-primary my-1"></div>
           <div className="px-4 py-1 text-[10px] font-bold text-text-secondary uppercase tracking-wider">Add to Group</div>
           <button onClick={() => createVisualGroup(tab.id)} className="w-full text-left px-4 py-1.5 text-xs text-text-primary hover:bg-accent-hover hover:text-white flex items-center">
@@ -557,11 +609,38 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
           </button>
         </>
       );
+    } else if (menuConfig.type === 'tabs-list') {
+      content = (
+        <div className="max-h-64 overflow-y-auto no-scrollbar py-1">
+          {group.tabs.length === 0 && (
+            <div className="px-4 py-2 text-xs text-text-secondary">No open tabs</div>
+          )}
+          {group.tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => {
+                dispatch({ type: 'SET_ACTIVE_TAB', workspaceId, groupId: group.id, tabId: t.id });
+                setMenuConfig(null);
+                
+                const tabElement = document.querySelector(`[data-tab-id="${t.id}"]`);
+                if (tabElement) {
+                  tabElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }
+              }}
+              className={`w-full text-left px-4 py-1.5 text-xs flex items-center justify-between hover:bg-bg-secondary ${group.activeTabId === t.id ? 'bg-bg-secondary border-l-2 border-accent-primary' : 'border-l-2 border-transparent'}`}
+              title={t.customName || t.name || 'Untitled Request'}
+            >
+              <span className="truncate text-text-primary pr-4 flex-1">{t.customName || t.name || 'Untitled Request'}</span>
+              <span className={`text-[10px] font-bold ${t.connectionType === 'websocket' ? 'text-text-accent' : getMethodColor(t.method)} shrink-0`}>{t.connectionType === 'websocket' ? 'WS' : t.method}</span>
+            </button>
+          ))}
+        </div>
+      );
     }
 
     return createPortal(
       <div 
-        className="fixed w-48 bg-bg-tertiary border border-border-primary rounded shadow-xl z-[9999] py-1" 
+        className={`fixed bg-bg-tertiary border border-border-primary rounded shadow-xl z-[9999] py-1 ${menuConfig.type === 'tabs-list' ? 'w-64' : 'w-48'}`} 
         style={{ top: menuConfig.y, left: menuConfig.x }}
         onClick={e => e.stopPropagation()}
       >
@@ -578,7 +657,11 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
       {/* Active Tab Content */}
       <div className="flex-1 flex flex-col overflow-hidden relative z-0">
         {activeTab ? (
-          <RequestPanel workspaceId={workspaceId} groupId={group.id} request={activeTab} />
+          activeTab.connectionType === 'websocket' ? (
+            <WebSocketPanel workspaceId={workspaceId} groupId={group.id} request={activeTab} />
+          ) : (
+            <RequestPanel workspaceId={workspaceId} groupId={group.id} request={activeTab} />
+          )
         ) : (
           <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">
             No active tab. Click + to create a new request.

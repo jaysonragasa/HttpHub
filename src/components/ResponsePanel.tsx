@@ -1,11 +1,114 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { HttpResponse } from '../types';
-import { AppContext } from '../store';
+import { AppContext, formatSize } from '../store';
+import NetworkGraphViewer from './NetworkGraphViewer';
+import { Network } from 'lucide-react';
+
+function stringifyAndMap(obj: any): { formattedText: string, lineMap: Record<string, number> } {
+  const map: Record<string, number> = {};
+  let line = 1;
+  let out = '';
+
+  function emit(str: string) {
+    out += str;
+    line += (str.match(/\n/g) || []).length;
+  }
+
+  function walk(val: any, indent: string, path: string) {
+    if (val === null) {
+      emit('null');
+    } else if (typeof val === 'string') {
+      emit(JSON.stringify(val));
+    } else if (typeof val === 'number' || typeof val === 'boolean') {
+      emit(String(val));
+    } else if (Array.isArray(val)) {
+      if (val.length === 0) {
+        emit('[]');
+      } else {
+        emit('[\n');
+        for (let i = 0; i < val.length; i++) {
+          const newPath = path ? `${path}[${i}]` : `[${i}]`;
+          emit(indent + '  ');
+          map[newPath] = line;
+          walk(val[i], indent + '  ', newPath);
+          if (i < val.length - 1) emit(',');
+          emit('\n');
+        }
+        emit(indent + ']');
+      }
+    } else if (typeof val === 'object') {
+      const keys = Object.keys(val);
+      if (keys.length === 0) {
+        emit('{}');
+      } else {
+        emit('{\n');
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          const newPath = path ? `${path}.${k}` : `${k}`;
+          emit(indent + '  ' + JSON.stringify(k) + ': ');
+          map[newPath] = line;
+          walk(val[k], indent + '  ', newPath);
+          if (i < keys.length - 1) emit(',');
+          emit('\n');
+        }
+        emit(indent + '}');
+      }
+    } else {
+      emit('null');
+    }
+  }
+
+  walk(obj, '', '');
+  return { formattedText: out, lineMap: map };
+}
+
+function pathToString(path: (string | number)[]): string {
+  return path.map(p => typeof p === 'number' ? `[${p}]` : `.${p}`).join('').replace(/^\./, '');
+}
 
 export default function ResponsePanel({ response, isLoading }: { response?: HttpResponse, isLoading: boolean }) {
   const [activeTab, setActiveTab] = useState<'body' | 'headers' | 'cookies'>('body');
+  const [isGraphExpanded, setIsGraphExpanded] = useState(false);
   const { state } = useContext(AppContext);
+  const editorRef = useRef<any>(null);
+
+  const { formattedText, lineMap } = React.useMemo(() => {
+    try {
+      if (!response) return { formattedText: '', lineMap: {} };
+      if (!response.isJson) {
+        if (typeof response.data === 'string') return { formattedText: response.data, lineMap: {} };
+        return { formattedText: JSON.stringify(response.data, null, 2), lineMap: {} };
+      }
+      
+      return stringifyAndMap(response.data);
+    } catch (e: any) {
+      console.error(e);
+      return { formattedText: String(e.stack || e), lineMap: {} };
+    }
+  }, [response]);
+
+  const handleNodeClick = (node: any) => {
+    if (!editorRef.current || !node.path || node.path.length === 0) return;
+    
+    const pathStr = pathToString(node.path);
+    const targetLine = lineMap[pathStr];
+    
+    if (targetLine) {
+      const model = editorRef.current.getModel();
+      if (model) {
+        editorRef.current.revealLineInCenter(targetLine);
+        const lineContent = model.getLineContent(targetLine);
+        editorRef.current.setSelection({
+          startLineNumber: targetLine,
+          startColumn: 1,
+          endLineNumber: targetLine,
+          endColumn: lineContent.length + 1
+        });
+        editorRef.current.focus();
+      }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -25,15 +128,6 @@ export default function ResponsePanel({ response, isLoading }: { response?: Http
       </div>
     );
   }
-
-  const statusColor = response.status >= 200 && response.status < 300 ? 'text-green-500' : 
-                      response.status >= 400 ? 'text-red-500' : 'text-yellow-500';
-
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  };
 
   const getContentType = () => {
     const contentType = response.headers['content-type'] || '';
@@ -56,70 +150,50 @@ export default function ResponsePanel({ response, isLoading }: { response?: Http
     return 'plaintext';
   };
 
-  const formatData = (data: any, isJson: boolean) => {
-    if (isJson) {
-      return JSON.stringify(data, null, 2);
-    }
-    if (typeof data === 'string') return data;
-    return JSON.stringify(data, null, 2);
-  };
-
   const theme = state.settings.theme === 'light' ? 'light' : 'vs-dark';
 
   return (
     <div className="flex flex-col h-full">
-      {/* Response Meta */}
-      <div className="flex items-center justify-between px-4 py-2 bg-bg-secondary border-b border-border-primary">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            {['body', 'headers', 'cookies'].map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab as any)}
-                className={`py-1 text-sm font-medium transition-colors ${
-                  activeTab === tab ? 'text-accent-primary' : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                {tab === 'headers' && <span className="ml-1 text-xs text-text-secondary">({Object.keys(response.headers).length})</span>}
-                {tab === 'cookies' && response.cookies && <span className="ml-1 text-xs text-text-secondary">({response.cookies.length})</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center space-x-4 text-xs font-mono">
-          <div className="flex items-center space-x-1">
-            <span className="text-text-secondary">Status:</span>
-            <span className={`font-bold ${statusColor}`}>{response.status} {response.statusText}</span>
-          </div>
-          <div className="flex items-center space-x-1">
-            <span className="text-text-secondary">Time:</span>
-            <span className="text-green-500">{response.time} ms</span>
-          </div>
-          <div className="flex items-center space-x-1">
-            <span className="text-text-secondary">Size:</span>
-            <span className="text-green-500">{formatSize(response.size)}</span>
-          </div>
-        </div>
-      </div>
-
       {/* Response Content */}
-      <div className="flex-1 overflow-auto bg-bg-primary">
+      <div className={`flex-1 bg-bg-primary ${activeTab === 'body' ? 'overflow-hidden' : 'overflow-auto'}`}>
         {activeTab === 'body' && (
-          <Editor
+          <div className="flex h-full w-full">
+            <div className={`h-full ${response.isJson && isGraphExpanded ? 'w-1/2 border-r border-border-primary' : 'w-full'} relative`}>
+              <Editor
             height="100%"
             language={getEditorLanguage()}
             theme={theme}
-            value={formatData(response.data, response.isJson)}
-            options={{
-              readOnly: true,
-              fontSize: state.settings.fontSize,
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              wordWrap: 'on',
-            }}
-          />
-        )}
+              value={formattedText}
+              onMount={(editor) => { editorRef.current = editor; }}
+              options={{
+                readOnly: true,
+                fontSize: state.settings.fontSize,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+              }}
+            />
+            {response.isJson && (
+              <button
+                onClick={() => setIsGraphExpanded(!isGraphExpanded)}
+                className={`absolute top-4 right-4 z-10 p-2 rounded shadow-md transition-colors ${
+                  isGraphExpanded 
+                    ? 'bg-accent-primary text-white hover:bg-accent-hover' 
+                    : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-border-primary'
+                }`}
+                title={isGraphExpanded ? "Hide Network Graph" : "Show Network Graph"}
+              >
+                <Network size={16} />
+              </button>
+            )}
+          </div>
+          {response.isJson && isGraphExpanded && (
+            <div className="w-1/2 h-full bg-bg-primary">
+              <NetworkGraphViewer data={response.data} onNodeClick={handleNodeClick} />
+            </div>
+          )}
+        </div>
+      )}
         {activeTab === 'headers' && (
           <div className="flex flex-col space-y-1 p-4">
             {Object.entries(response.headers).map(([key, value]) => (
@@ -147,6 +221,41 @@ export default function ResponsePanel({ response, isLoading }: { response?: Http
             )}
           </div>
         )}
+      </div>
+
+      {/* Response Meta + Tab Bar (bottom) */}
+      <div className="flex items-center justify-between px-4 py-2 bg-bg-secondary border-t border-border-primary">
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            {['body', 'headers', 'cookies'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab as any)}
+                className={`py-1 text-sm font-medium transition-colors ${
+                  activeTab === tab ? 'text-accent-primary' : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === 'headers' && <span className="ml-1 text-xs text-text-secondary">({Object.keys(response.headers).length})</span>}
+                {tab === 'cookies' && <span className="ml-1 text-xs text-text-secondary">({response.cookies?.length ?? 0})</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center space-x-4 text-xs font-mono">
+          <div className="flex items-center space-x-1">
+            <span className="text-text-secondary">Status:</span>
+            <span className="font-bold text-accent-primary">{response.status} {response.statusText}</span>
+          </div>
+          <div className="flex items-center space-x-1">
+            <span className="text-text-secondary">Time:</span>
+            <span className="text-text-primary">{response.time} ms</span>
+          </div>
+          <div className="flex items-center space-x-1">
+            <span className="text-text-secondary">Size:</span>
+            <span className="text-text-primary">{formatSize(response.size)}</span>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -32,6 +32,8 @@ export interface VisualTabGroup {
   collapsed: boolean;
 }
 
+export type ConnectionType = 'http' | 'websocket';
+
 export interface RequestModel {
   id: string;
   name: string;
@@ -48,6 +50,12 @@ export interface RequestModel {
   response?: HttpResponse;
   isLoading: boolean;
   visualGroupId?: string;
+  isCookieParent?: boolean;
+  // WebSocket support (persisted per-tab config). Optional for backward compat:
+  // a tab with no connectionType is treated as 'http'.
+  connectionType?: ConnectionType;
+  wsUrl?: string;       // WS_Endpoint (ws:// or wss://)
+  wsDraft?: string;     // Message_Composer draft
 }
 
 export interface TabGroupModel {
@@ -61,9 +69,13 @@ export interface TabGroupModel {
   verticalWidth: number;
 }
 
+export type LayoutOrientation = 'stacked' | 'side-by-side';
+
 export interface SettingsModel {
   fontSize: number;
   theme: 'dark' | 'monako' | 'cyberpunk' | 'light';
+  layoutOrientation: LayoutOrientation;
+  splitRatio: number; // Request_Config_Region share, 0..1
 }
 
 export interface WorkspaceModel {
@@ -71,4 +83,5 @@ export interface WorkspaceModel {
   name: string;
   tabGroups: TabGroupModel[];
   splitDirection: 'row' | 'col';
+  isCollapsed?: boolean;
 }
