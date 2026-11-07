@@ -23,6 +23,7 @@ export const createNewRequest = (): RequestModel => ({
   urlencoded: [{ id: Math.random().toString(36).substring(7), key: '', value: '', enabled: true }],
   inheritCookieFrom: '',
   isLoading: false,
+  responseFilter: '',
 });
 
 export const createNewTabGroup = (): TabGroupModel => {

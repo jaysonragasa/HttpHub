@@ -1,6 +1,17 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import fs from 'fs';
+
+// If running from a junction or symlink, resolve to the physical real path
+try {
+  process.chdir(fs.realpathSync(process.cwd()));
+} catch (e) {
+  // Ignore
+}
+
+// Disable strict SSL verification to allow fetching from local self-signed HTTPS endpoints (like Postman does)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 async function startServer() {
   const app = express();
@@ -13,10 +24,20 @@ async function startServer() {
     const { method, url, headers, body, bodyType } = req.body;
     
     const startTime = Date.now();
+    const abortController = new AbortController();
+
+    // If client disconnects or aborts, cancel upstream fetch immediately
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        abortController.abort();
+      }
+    });
+
     try {
       const fetchOptions: RequestInit = {
         method,
         headers: headers || {},
+        signal: abortController.signal,
       };
 
       if (method !== 'GET' && method !== 'HEAD' && body) {
@@ -99,6 +120,9 @@ async function startServer() {
       });
 
     } catch (error: any) {
+      if (res.writableEnded) {
+        return;
+      }
       const endTime = Date.now();
       res.json({
         status: 0,
@@ -115,7 +139,13 @@ async function startServer() {
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        watch: {
+          ignored: ['**/HttpHub/**', '**/dist/**', '**/.git/**'],
+          followSymlinks: false,
+        },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

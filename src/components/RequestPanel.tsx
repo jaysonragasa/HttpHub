@@ -1,11 +1,14 @@
 import React, { useContext, useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Rows2, Columns2, AlertTriangle } from 'lucide-react';
+import { Send, Loader2, Rows2, Columns2, AlertTriangle, Square } from 'lucide-react';
 import { AppContext, DIVIDER_THICKNESS, clampSplitRatio } from '../store';
 import { RequestModel, KV } from '../types';
 import KeyValueEditor from './KeyValueEditor';
 import ResponsePanel from './ResponsePanel';
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'];
+
+// Map of tab request ID -> active AbortController to allow immediate cancellation
+const activeRequests = new Map<string, AbortController>();
 
 export default function RequestPanel({ workspaceId, groupId, request }: { workspaceId: string, groupId: string, request: RequestModel }) {
   const { state, dispatch } = useContext(AppContext);
@@ -95,9 +98,10 @@ export default function RequestPanel({ workspaceId, groupId, request }: { worksp
   const handleUrlChange = (newUrl: string) => {
     let updatedParams = [...request.params];
     
-    const queryStart = newUrl.indexOf('?');
+    const sanitizedUrl = newUrl.replace(/[\r\n]/g, '');
+    const queryStart = sanitizedUrl.indexOf('?');
     if (queryStart !== -1) {
-      const queryString = newUrl.slice(queryStart + 1);
+      const queryString = sanitizedUrl.slice(queryStart + 1);
       const searchParams = new URLSearchParams(queryString);
       
       const parsedParams: {key: string, value: string}[] = [];
@@ -143,14 +147,44 @@ export default function RequestPanel({ workspaceId, groupId, request }: { worksp
     updateRequest(r => ({ ...r, params: newParams, url: newUrl }));
   };
 
+  const handleStop = () => {
+    if (activeRequests.has(request.id)) {
+      activeRequests.get(request.id)?.abort();
+      activeRequests.delete(request.id);
+    }
+    updateRequest(r => ({
+      ...r,
+      isLoading: false,
+      response: {
+        status: 0,
+        statusText: 'Cancelled',
+        time: 0,
+        size: 0,
+        headers: {},
+        data: 'Request cancelled by user',
+        isJson: false,
+        error: 'Request cancelled by user'
+      }
+    }));
+  };
+
   const handleSend = async () => {
     if (!request.url) return;
     
+    if (activeRequests.has(request.id)) {
+      activeRequests.get(request.id)?.abort();
+      activeRequests.delete(request.id);
+    }
+
+    const abortController = new AbortController();
+    activeRequests.set(request.id, abortController);
+
     updateRequest(r => ({ ...r, isLoading: true, response: undefined }));
 
     try {
       // Construct URL (params are already synced to request.url)
-      const urlObj = new URL(request.url.startsWith('http') ? request.url : `http://${request.url}`);
+      const sanitizedUrl = request.url.replace(/[\r\n]/g, '');
+      const urlObj = new URL(sanitizedUrl.startsWith('http') ? sanitizedUrl : `http://${sanitizedUrl}`);
 
       // Construct headers
       const headers: Record<string, string> = {};
@@ -216,6 +250,7 @@ export default function RequestPanel({ workspaceId, groupId, request }: { worksp
       const res = await fetch('/api/proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: abortController.signal,
         body: JSON.stringify({
           method: request.method,
           url: urlObj.toString(),
@@ -226,9 +261,15 @@ export default function RequestPanel({ workspaceId, groupId, request }: { worksp
       });
 
       const data = await res.json();
+      activeRequests.delete(request.id);
       updateRequest(r => ({ ...r, isLoading: false, response: data }));
 
     } catch (error: any) {
+      activeRequests.delete(request.id);
+      if (error.name === 'AbortError') {
+        // Cancelled by handleStop
+        return;
+      }
       updateRequest(r => ({ 
         ...r, 
         isLoading: false, 
@@ -266,23 +307,43 @@ export default function RequestPanel({ workspaceId, groupId, request }: { worksp
         >
           {METHODS.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
-        <input 
-          type="text"
+        <textarea 
           value={request.url}
-          onChange={(e) => handleUrlChange(e.target.value)}
+          onChange={(e) => {
+            handleUrlChange(e.target.value);
+            e.target.style.height = 'auto';
+            e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+          }}
           placeholder="Enter request URL"
-          className="flex-1 bg-bg-tertiary border border-border-primary text-text-primary text-sm rounded px-3 py-2 outline-none focus:border-accent-hover font-mono"
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          className="flex-1 bg-bg-tertiary border border-border-primary text-text-primary text-sm rounded px-3 py-2 outline-none focus:border-accent-hover font-mono resize-y min-h-[38px] leading-tight no-scrollbar"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
           style={{ fontSize: 'var(--editor-font-size)' }}
+          rows={1}
         />
-        <button 
-          onClick={handleSend}
-          disabled={request.isLoading || !request.url}
-          className="flex items-center space-x-2 bg-accent-primary hover:bg-accent-hover disabled:bg-bg-tertiary disabled:text-text-secondary text-white px-6 py-2 rounded text-sm font-medium transition-colors"
-        >
-          {request.isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-          <span>Send</span>
-        </button>
+        {request.isLoading ? (
+          <button 
+            onClick={handleStop}
+            className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded text-sm font-medium transition-colors shadow-sm"
+            title="Stop waiting and cancel request"
+          >
+            <Square size={13} className="fill-current" />
+            <span>Stop</span>
+          </button>
+        ) : (
+          <button 
+            onClick={handleSend}
+            disabled={!request.url}
+            className="flex items-center space-x-2 bg-accent-primary hover:bg-accent-hover disabled:bg-bg-tertiary disabled:text-text-secondary text-white px-6 py-2 rounded text-sm font-medium transition-colors"
+          >
+            <Send size={16} />
+            <span>Send</span>
+          </button>
+        )}
 
         {/* Layout_Toggle: icon reflects the action it will perform (R3.1, R3.9) */}
         <button
@@ -455,7 +516,13 @@ export default function RequestPanel({ workspaceId, groupId, request }: { worksp
           className="flex flex-col overflow-hidden bg-bg-secondary"
           style={{ flexBasis: `${responseShare * 100}%`, flexGrow: 0, flexShrink: 0, minWidth: 200, minHeight: 200 }}
         >
-          <ResponsePanel response={request.response} isLoading={request.isLoading} />
+          <ResponsePanel 
+            response={request.response} 
+            isLoading={request.isLoading} 
+            onCancel={handleStop}
+            filterPath={request.responseFilter || ''}
+            onFilterChange={(f) => updateRequest(r => ({ ...r, responseFilter: f }))}
+          />
         </div>
       </div>
     </div>

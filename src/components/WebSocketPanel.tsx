@@ -59,7 +59,8 @@ export default function WebSocketPanel({ workspaceId, groupId, request }: { work
   const draft = request.wsDraft || '';
   const isConnected = state === 'connected';
   const isBusy = state === 'connecting' || state === 'closing';
-  const urlValid = isValidWsUrl(wsUrl);
+  const sanitizedUrl = wsUrl.replace(/[\r\n]/g, '');
+  const urlValid = isValidWsUrl(sanitizedUrl);
 
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -77,7 +78,8 @@ export default function WebSocketPanel({ workspaceId, groupId, request }: { work
     if (isConnected || isBusy) {
       disconnect(tabId);
     } else {
-      connect(tabId, wsUrl);
+      const sanitizedUrl = wsUrl.replace(/[\r\n]/g, '');
+      connect(tabId, sanitizedUrl);
     }
   };
 
@@ -102,15 +104,24 @@ export default function WebSocketPanel({ workspaceId, groupId, request }: { work
           <option value="http">HTTP</option>
           <option value="websocket">WS</option>
         </select>
-        <input
-          type="text"
+        <textarea
           value={wsUrl}
-          onChange={(e) => updateRequest(r => ({ ...r, wsUrl: e.target.value, name: e.target.value || 'Untitled Request' }))}
+          onChange={(e) => {
+            updateRequest(r => ({ ...r, wsUrl: e.target.value, name: e.target.value || 'Untitled Request' }));
+            e.target.style.height = 'auto';
+            e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+          }}
           placeholder="ws://localhost:8080 or wss://example.com/socket"
           disabled={isConnected || isBusy}
-          className="flex-1 bg-bg-tertiary border border-border-primary text-text-primary text-sm rounded px-3 py-2 outline-none focus:border-accent-hover font-mono disabled:opacity-60"
-          onKeyDown={(e) => e.key === 'Enter' && !isConnected && !isBusy && urlValid && handleConnectToggle()}
+          className="flex-1 bg-bg-tertiary border border-border-primary text-text-primary text-sm rounded px-3 py-2 outline-none focus:border-accent-hover font-mono disabled:opacity-60 resize-y min-h-[38px] leading-tight no-scrollbar"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              if (!isConnected && !isBusy && urlValid) handleConnectToggle();
+            }
+          }}
           style={{ fontSize: 'var(--editor-font-size)' }}
+          rows={1}
         />
         <button
           onClick={handleConnectToggle}

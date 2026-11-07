@@ -1,7 +1,7 @@
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Plus, X, SplitSquareHorizontal, SplitSquareVertical, MoreVertical, LayoutPanelLeft, LayoutPanelTop, Pin, PinOff, ChevronRight, ChevronLeft, FolderPlus, ChevronDown } from 'lucide-react';
+import { Plus, X, SplitSquareHorizontal, SplitSquareVertical, MoreVertical, LayoutPanelLeft, LayoutPanelTop, Pin, PinOff, ChevronRight, ChevronLeft, FolderPlus, ChevronDown, Loader2 } from 'lucide-react';
 import { AppContext } from '../store';
 import { TabGroupModel, RequestModel, VisualTabGroup } from '../types';
 import RequestPanel from './RequestPanel';
@@ -287,7 +287,10 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
                     onClick={e => e.stopPropagation()}
                   />
                 ) : (
-                  <span className="text-xs truncate flex-1" onDoubleClick={() => handleRename(tab)} title={tabName}>{tabName}</span>
+                  <div className="flex-1 min-w-0 flex items-center" onDoubleClick={() => handleRename(tab)} title={tabName}>
+                    <span className="text-xs truncate">{tabName}</span>
+                    {tab.isLoading && <Loader2 size={12} className="ml-1.5 shrink-0 animate-spin text-accent-primary" />}
+                  </div>
                 )}
                 
                 <div className="flex items-center opacity-0 group-hover/tab:opacity-100 transition-opacity">
@@ -319,13 +322,14 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
   const renderTabBar = () => (
     <div 
       ref={sidebarRef}
-      className={`flex ${isVertical ? 'flex-col h-full bg-bg-primary border-r border-border-primary relative transition-all duration-200 ease-in-out z-10' : 'items-center bg-bg-tertiary border-b border-border-primary overflow-x-auto no-scrollbar'}`}
+      className={`flex ${isVertical ? 'flex-col h-full bg-bg-primary border-r border-border-primary relative transition-all duration-200 ease-in-out z-10' : 'items-center bg-bg-tertiary border-b border-border-primary overflow-hidden'}`}
       style={{ width: isVertical ? sidebarWidth : 'auto' }}
       onMouseEnter={() => isVertical && setIsHoveringVertical(true)}
       onMouseLeave={() => isVertical && setIsHoveringVertical(false)}
       onWheel={(e) => {
         if (!isVertical && sidebarRef.current) {
-          sidebarRef.current.scrollLeft += e.deltaY;
+          const scrollContainer = sidebarRef.current.querySelector('.tabs-scroll-container');
+          if (scrollContainer) scrollContainer.scrollLeft += e.deltaY;
         }
       }}
     >
@@ -361,7 +365,7 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
             <div 
               ref={provided.innerRef}
               {...provided.droppableProps}
-              className={`${isVertical ? 'flex-1 overflow-y-auto overflow-x-hidden' : 'flex items-center h-full'}`}
+              className={`${isVertical ? 'flex-1 overflow-y-auto overflow-x-hidden' : 'flex-1 flex items-center h-full overflow-x-auto no-scrollbar tabs-scroll-container'}`}
             >
               {groupedTabs.map((gt, i) => (
                 // @ts-ignore - key is a valid React prop
@@ -452,55 +456,61 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
 
       {/* Horizontal Mode Toolbar */}
       {!isVertical && (
-        <>
-          <div className="sticky z-20 bg-bg-tertiary flex items-center justify-center shrink-0 right-[163px] pl-1 pr-2">
-            <button 
-              onClick={() => dispatch({ type: 'ADD_TAB', workspaceId, groupId: group.id })}
-              className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
-              title="New Tab"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
+        <div className="flex items-center bg-bg-tertiary shrink-0 border-l border-border-primary pl-1 pr-2 space-x-1 h-full z-20 relative ml-auto">
+          <button 
+            onClick={() => {
+              dispatch({ type: 'ADD_TAB', workspaceId, groupId: group.id });
+              setTimeout(() => {
+                const scrollContainer = sidebarRef.current?.querySelector('.tabs-scroll-container');
+                if (scrollContainer) {
+                  scrollContainer.scrollTo({ left: scrollContainer.scrollWidth, behavior: 'smooth' });
+                }
+              }, 10);
+            }}
+            className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
+            title="New Tab"
+          >
+            <Plus size={14} />
+          </button>
           
-          <div className="sticky right-0 z-20 bg-bg-tertiary flex items-center px-2 space-x-1 shrink-0 border-l border-border-primary h-full ml-auto">
-            <button 
-              onClick={(e) => handleMenuClick(e, 'tabs-list', '')}
-              className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
-              title="Open Tabs"
-            >
-              <ChevronDown size={14} />
-            </button>
-            <button 
-              onClick={() => dispatch({ type: 'UPDATE_TAB_GROUP', workspaceId, groupId: group.id, updater: g => ({ ...g, tabMode: 'vertical' }) })}
-              className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
-              title="Vertical Tabs"
-            >
-              <LayoutPanelLeft size={14} />
-            </button>
-            <button 
-              onClick={() => dispatch({ type: 'ADD_TAB_GROUP', workspaceId, direction: 'row' })}
-              className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
-              title="Split Right"
-            >
-              <SplitSquareHorizontal size={14} />
-            </button>
-            <button 
-              onClick={() => dispatch({ type: 'ADD_TAB_GROUP', workspaceId, direction: 'col' })}
-              className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
-              title="Split Down"
-            >
-              <SplitSquareVertical size={14} />
-            </button>
-            <button 
-              onClick={() => dispatch({ type: 'REMOVE_TAB_GROUP', workspaceId, groupId: group.id })}
-              className="p-1.5 hover:bg-red-900/50 rounded text-text-secondary hover:text-red-400"
-              title="Close Split"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        </>
+          <div className="w-px h-4 bg-border-primary mx-1"></div>
+
+          <button 
+            onClick={(e) => handleMenuClick(e, 'tabs-list', '')}
+            className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
+            title="Open Tabs"
+          >
+            <ChevronDown size={14} />
+          </button>
+          <button 
+            onClick={() => dispatch({ type: 'UPDATE_TAB_GROUP', workspaceId, groupId: group.id, updater: g => ({ ...g, tabMode: 'vertical' }) })}
+            className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
+            title="Vertical Tabs"
+          >
+            <LayoutPanelLeft size={14} />
+          </button>
+          <button 
+            onClick={() => dispatch({ type: 'ADD_TAB_GROUP', workspaceId, direction: 'row' })}
+            className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
+            title="Split Right"
+          >
+            <SplitSquareHorizontal size={14} />
+          </button>
+          <button 
+            onClick={() => dispatch({ type: 'ADD_TAB_GROUP', workspaceId, direction: 'col' })}
+            className="p-1.5 hover:bg-bg-secondary rounded text-text-secondary hover:text-text-primary"
+            title="Split Down"
+          >
+            <SplitSquareVertical size={14} />
+          </button>
+          <button 
+            onClick={() => dispatch({ type: 'REMOVE_TAB_GROUP', workspaceId, groupId: group.id })}
+            className="p-1.5 hover:bg-red-900/50 rounded text-text-secondary hover:text-red-400"
+            title="Close Split"
+          >
+            <X size={14} />
+          </button>
+        </div>
       )}
       
       {/* Vertical Mode Bottom Toolbar */}
@@ -630,7 +640,10 @@ export default function TabGroupView({ workspaceId, group, splitDirection }: { w
               className={`w-full text-left px-4 py-1.5 text-xs flex items-center justify-between hover:bg-bg-secondary ${group.activeTabId === t.id ? 'bg-bg-secondary border-l-2 border-accent-primary' : 'border-l-2 border-transparent'}`}
               title={t.customName || t.name || 'Untitled Request'}
             >
-              <span className="truncate text-text-primary pr-4 flex-1">{t.customName || t.name || 'Untitled Request'}</span>
+              <div className="flex-1 min-w-0 flex items-center pr-4">
+                <span className="truncate text-text-primary">{t.customName || t.name || 'Untitled Request'}</span>
+                {t.isLoading && <Loader2 size={12} className="ml-1.5 shrink-0 animate-spin text-accent-primary" />}
+              </div>
               <span className={`text-[10px] font-bold ${t.connectionType === 'websocket' ? 'text-text-accent' : getMethodColor(t.method)} shrink-0`}>{t.connectionType === 'websocket' ? 'WS' : t.method}</span>
             </button>
           ))}

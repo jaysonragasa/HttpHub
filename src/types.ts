@@ -56,6 +56,7 @@ export interface RequestModel {
   connectionType?: ConnectionType;
   wsUrl?: string;       // WS_Endpoint (ws:// or wss://)
   wsDraft?: string;     // Message_Composer draft
+  responseFilter?: string;
 }
 
 export interface TabGroupModel {

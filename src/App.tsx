@@ -3,6 +3,7 @@ import { Plus, LayoutGrid, Settings, Maximize2 } from 'lucide-react';
 import { reducer, initialState, AppContext } from './store';
 import WorkspaceView from './components/WorkspaceView';
 import SettingsModal from './components/SettingsModal';
+import AnimatedLogo from './components/AnimatedLogo';
 
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -53,10 +54,7 @@ export default function App() {
           {/* Top Navigation */}
           <header className="flex items-center justify-between px-4 py-2 bg-bg-tertiary border-b border-border-primary">
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-text-accent font-bold text-lg shrink-0">
-                <LayoutGrid size={20} />
-                <span>HttpHub</span>
-              </div>
+              <AnimatedLogo />
               
               {collapsedWorkspaces.length > 0 && (
                 <div className="flex items-center space-x-2 ml-4 border-l border-border-primary pl-4 overflow-x-auto no-scrollbar">

@@ -20,9 +20,9 @@
   --theme-border-primary: #1f2937;
   --theme-text-primary: #d1d5db;
   --theme-text-secondary: #9ca3af;
-  --theme-text-accent: #34d399;
-  --theme-accent-primary: #059669;
-  --theme-accent-hover: #10b981;
+  --theme-text-accent: #fb923c;
+  --theme-accent-primary: #ea580c;
+  --theme-accent-hover: #f97316;
 }
 
 /* Default Dark Theme */
@@ -33,9 +33,9 @@
   --theme-border-primary: #1f2937; /* gray-800 */
   --theme-text-primary: #d1d5db; /* gray-300 */
   --theme-text-secondary: #9ca3af; /* gray-400 */
-  --theme-text-accent: #34d399; /* emerald-400 */
-  --theme-accent-primary: #059669; /* emerald-600 */
-  --theme-accent-hover: #10b981; /* emerald-500 */
+  --theme-text-accent: #fb923c; /* orange-400 */
+  --theme-accent-primary: #ea580c; /* orange-600 */
+  --theme-accent-hover: #f97316; /* orange-500 */
 }
 
 /* Monako Theme */
